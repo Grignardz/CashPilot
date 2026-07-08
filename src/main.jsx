@@ -1283,13 +1283,13 @@ function RecordsScreen({ query, setQuery, expenses, onDelete, onAdd, splits, set
                             padding: "4px 8px", 
                             fontSize: "11px", 
                             height: "fit-content", 
-                            background: isPending ? "rgba(169, 141, 245, 0.15)" : "rgba(255, 255, 255, 0.08)", 
-                            border: isPending ? "1px solid rgba(169, 141, 245, 0.3)" : "1px solid var(--border)", 
-                            color: isPending ? "var(--accent-light)" : "var(--text)" 
+                            background: isPending ? "rgba(169, 141, 245, 0.15)" : "rgba(200, 240, 192, 0.08)", 
+                            border: isPending ? "1px solid rgba(169, 141, 245, 0.3)" : "1px solid rgba(200, 240, 192, 0.2)", 
+                            color: isPending ? "var(--accent-light)" : "var(--accent-light)" 
                           }} 
                           onClick={() => isPending ? settleSplit(split.id) : unsettleSplit(split.id)}
                         >
-                          {isPending ? "Settle" : "Undo"}
+                          {isPending ? "Settle" : "Settled"}
                         </button>
                       </div>
                     </div>
@@ -1357,27 +1357,25 @@ function ExpenseRow({ expense, onDelete, splits = [], settleSplit, unsettleSplit
                 Settle
               </button>
             ) : (
-              <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                <span style={{ fontSize: "11px", color: "var(--muted)" }}>Settled</span>
-                <button 
-                  className="pressable" 
-                  style={{ 
-                    background: "none", 
-                    border: "none", 
-                    color: "var(--accent-light)", 
-                    fontSize: "11px", 
-                    textDecoration: "underline", 
-                    padding: 0, 
-                    cursor: "pointer" 
-                  }} 
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    unsettleSplit(associatedSplit.id);
-                  }}
-                >
-                  Undo
-                </button>
-              </div>
+              <button 
+                className="primary-button pressable" 
+                style={{ 
+                  margin: 0, 
+                  padding: "4px 8px", 
+                  fontSize: "11px", 
+                  width: "auto", 
+                  background: "rgba(200, 240, 192, 0.08)", 
+                  border: "1px solid rgba(200, 240, 192, 0.2)", 
+                  color: "var(--accent-light)", 
+                  height: "fit-content" 
+                }} 
+                onClick={(e) => {
+                  e.stopPropagation();
+                  unsettleSplit(associatedSplit.id);
+                }}
+              >
+                Settled
+              </button>
             )
           )}
         </div>
@@ -2101,8 +2099,8 @@ function InboxScreen({ totals, settings, expenses, onBudget, notifications, onRe
                   Settled{split.settledDate ? ` on ${split.settledDate}` : ""}
                 </p>
               </div>
-              <button className="primary-button pressable" style={{ width: "auto", margin: 0, padding: "6px 12px", fontSize: "11px", height: "fit-content", flexShrink: 0, background: "rgba(255, 255, 255, 0.08)", color: "var(--text)", border: "1px solid var(--border)" }} onClick={() => unsettleSplit(split.id)}>
-                Undo
+              <button className="primary-button pressable" style={{ width: "auto", margin: 0, padding: "6px 12px", fontSize: "11px", height: "fit-content", flexShrink: 0, background: "rgba(200, 240, 192, 0.08)", border: "1px solid rgba(200, 240, 192, 0.2)", color: "var(--accent-light)" }} onClick={() => unsettleSplit(split.id)}>
+                Settled
               </button>
             </div>
           ))}
