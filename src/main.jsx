@@ -183,7 +183,7 @@ function CashPilotApp() {
   }, [expenses, settings, budgetMetrics.safeDaily]);
 
   const addExpense = async (expense) => {
-    await addTransaction({
+    const ref = await addTransaction({
       amount: expense.amount,
       type: "expense",
       category: expense.category,
@@ -194,6 +194,7 @@ function CashPilotApp() {
     refreshAlerts();
     refreshRecurring();
     setScreen("records");
+    return ref;
   };
 
   const deleteExpense = async (id) => {
@@ -259,6 +260,9 @@ function CashPilotApp() {
               onDismissAi={() => setAiOpen(false)}
               onAdd={() => setScreen("add")}
               onRecords={() => setScreen("records")}
+              splits={splits}
+              settleSplit={settleSplitAction}
+              unsettleSplit={unsettleSplitAction}
             />
           )}
           {screen === "add" && (
@@ -277,10 +281,13 @@ function CashPilotApp() {
               expenses={expenses}
               onDelete={deleteExpense}
               onAdd={() => setScreen("add")}
+              splits={splits}
+              settleSplit={settleSplitAction}
+              unsettleSplit={unsettleSplitAction}
             />
           )}
           {screen === "budget" && <BudgetScreen settings={settings} updateSettings={updateSettings} totals={totals} addTransaction={addTransaction} accounts={accounts} />}
-          {screen === "calendar" && <CalendarScreen expenses={expenses} totals={totals} onAdd={() => setScreen("add")} />}
+          {screen === "calendar" && <CalendarScreen expenses={expenses} totals={totals} onAdd={() => setScreen("add")} splits={splits} settleSplit={settleSplitAction} unsettleSplit={unsettleSplitAction} />}
           {screen === "inbox" && <InboxScreen totals={totals} settings={settings} expenses={expenses} onBudget={() => setScreen("budget")} notifications={notifications} onReadNotification={readNotification} splits={splits} settleSplit={settleSplitAction} unsettleSplit={unsettleSplitAction} />}
           {screen === "settings" && (
             <SettingsScreen
@@ -583,7 +590,7 @@ function AuthScreen({ authError, onSignIn, onSignUp, onGoogle }) {
   );
 }
 
-function HomeScreen({ expenses, totals, settings, goals, aiOpen, onDismissAi, onAdd, onRecords }) {
+function HomeScreen({ expenses, totals, settings, goals, aiOpen, onDismissAi, onAdd, onRecords, splits, settleSplit, unsettleSplit }) {
   const [aiAdvice, setAiAdvice] = useState("");
   const [balanceHidden, setBalanceHidden] = useState(true);
 
@@ -666,7 +673,7 @@ function HomeScreen({ expenses, totals, settings, goals, aiOpen, onDismissAi, on
       </div>
 
       <CategoryBreakdown totals={totals} />
-      <RecentExpenses expenses={expenses.slice(0, 4)} />
+      <RecentExpenses expenses={expenses.slice(0, 4)} splits={splits} settleSplit={settleSplit} unsettleSplit={unsettleSplit} />
       <GoalPreview goals={goals} />
     </div>
   );
@@ -819,7 +826,7 @@ function CategoryBreakdown({ totals }) {
   );
 }
 
-function RecentExpenses({ expenses }) {
+function RecentExpenses({ expenses, splits, settleSplit, unsettleSplit }) {
   return (
     <section className="student-panel recent-panel">
       <div className="panel-heading">
@@ -828,7 +835,7 @@ function RecentExpenses({ expenses }) {
       </div>
       <div className="expense-list">
         {expenses.map((item) => (
-          <ExpenseRow key={item.id} expense={item} />
+          <ExpenseRow key={item.id} expense={item} splits={splits} settleSplit={settleSplit} unsettleSplit={unsettleSplit} />
         ))}
       </div>
     </section>
@@ -1165,7 +1172,7 @@ function AddExpenseScreen({ onAdd, onOpenModal }) {
   );
 }
 
-function RecordsScreen({ query, setQuery, expenses, onDelete, onAdd }) {
+function RecordsScreen({ query, setQuery, expenses, onDelete, onAdd, splits, settleSplit, unsettleSplit }) {
   const filtered = expenses.filter((item) =>
     `${item.title} ${item.category} ${item.note}`.toLowerCase().includes(query.toLowerCase())
   );
@@ -1186,7 +1193,7 @@ function RecordsScreen({ query, setQuery, expenses, onDelete, onAdd }) {
       </div>
       <div className="expense-list full">
         {filtered.map((item) => (
-          <ExpenseRow key={item.id} expense={item} onDelete={onDelete} />
+          <ExpenseRow key={item.id} expense={item} onDelete={onDelete} splits={splits} settleSplit={settleSplit} unsettleSplit={unsettleSplit} />
         ))}
       </div>
       {filtered.length === 0 && <p className="empty-state">No matching expense records yet.</p>}
@@ -1194,7 +1201,7 @@ function RecordsScreen({ query, setQuery, expenses, onDelete, onAdd }) {
   );
 }
 
-function ExpenseRow({ expense, onDelete }) {
+function ExpenseRow({ expense, onDelete, splits = [], settleSplit, unsettleSplit }) {
   const category = categories.find((item) => item.name === expense.category) || categories.at(-1);
   const Icon = category.icon;
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -1206,17 +1213,66 @@ function ExpenseRow({ expense, onDelete }) {
     onDelete(expense.id);
   };
 
+  const associatedSplit = (splits || []).find((s) => s.expenseId === expense.id);
+
   return (
     <>
       <article className="expense-row">
         <span className="category-icon" style={{ background: category.color }}>
           <Icon size={17} />
         </span>
-        <div>
-          <strong>{expense.title}</strong>
-          <small>{expense.category} · {expense.date}{expense.note ? ` · ${expense.note}` : ""}</small>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <strong style={{ display: "block", textOverflow: "ellipsis", overflow: "hidden", whiteSpace: "nowrap" }}>{expense.title}</strong>
+          <small style={{ display: "block", textOverflow: "ellipsis", overflow: "hidden", whiteSpace: "nowrap" }}>{expense.category} · {expense.date}{expense.note ? ` · ${expense.note}` : ""}</small>
         </div>
-        <b>{currency(expense.amount)}</b>
+        <div style={{ display: "flex", alignItems: "center", gap: "8px", flexShrink: 0 }}>
+          <b>{currency(expense.amount)}</b>
+          {associatedSplit && settleSplit && unsettleSplit && (
+            associatedSplit.status === "pending" ? (
+              <button 
+                className="primary-button pressable" 
+                style={{ 
+                  margin: 0, 
+                  padding: "4px 8px", 
+                  fontSize: "11px", 
+                  width: "auto", 
+                  background: "rgba(169, 141, 245, 0.15)", 
+                  border: "1px solid rgba(169, 141, 245, 0.3)", 
+                  color: "var(--accent-light)", 
+                  height: "fit-content" 
+                }} 
+                onClick={(e) => {
+                  e.stopPropagation();
+                  settleSplit(associatedSplit.id);
+                }}
+              >
+                Settle
+              </button>
+            ) : (
+              <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                <span style={{ fontSize: "11px", color: "var(--muted)" }}>Settled</span>
+                <button 
+                  className="pressable" 
+                  style={{ 
+                    background: "none", 
+                    border: "none", 
+                    color: "var(--accent-light)", 
+                    fontSize: "11px", 
+                    textDecoration: "underline", 
+                    padding: 0, 
+                    cursor: "pointer" 
+                  }} 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    unsettleSplit(associatedSplit.id);
+                  }}
+                >
+                  Undo
+                </button>
+              </div>
+            )
+          )}
+        </div>
         {onDelete && (
           <button className="delete-expense pressable" aria-label={`Delete ${expense.title}`} onClick={handleDeleteClick}>
             <X size={14} />
@@ -1659,7 +1715,7 @@ function CalendarGraphs({ totals, expenses }) {
   );
 }
 
-function CalendarScreen({ expenses, totals, onAdd }) {
+function CalendarScreen({ expenses, totals, onAdd, splits, settleSplit, unsettleSplit }) {
   const [viewMonth, setViewMonth] = useState(() => {
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
@@ -1755,7 +1811,7 @@ function CalendarScreen({ expenses, totals, onAdd }) {
             <div className="calendar-detail-total">{currency(selectedTotal)}</div>
             {selectedExpenses.length > 0 ? (
               <div className="expense-list" style={{ marginTop: "16px" }}>
-                {selectedExpenses.map((item) => <ExpenseRow key={item.id} expense={item} />)}
+                {selectedExpenses.map((item) => <ExpenseRow key={item.id} expense={item} splits={splits} settleSplit={settleSplit} unsettleSplit={unsettleSplit} />)}
               </div>
             ) : (
               <p style={{ color: "var(--text-secondary)", fontSize: "14px", marginTop: "16px", textAlign: "center" }}>No expenses on this day</p>
@@ -2045,27 +2101,32 @@ function StudentModal({ onClose, expenseId, addSplit, splitContext, onAdd }) {
     }
     setError("");
     try {
-      // 1. Create the split record in Firebase splits collection
-      await addSplit({ 
-        expenseId: expenseId || "", 
-        originalAmount, 
-        yourShare, 
-        friendName: form.friendName.trim() 
-      });
+      let linkedExpenseId = expenseId || "";
 
-      // 2. Automatically log the user's share as a regular transaction
+      // 1. Automatically log the user's share as a regular transaction
       if (onAdd) {
         const title = splitContext?.title 
           ? `${splitContext.title} (Split with ${form.friendName.trim()})`
           : `Split with ${form.friendName.trim()}`;
-        await onAdd({
+        const ref = await onAdd({
           title,
           amount: yourShare,
           category: splitContext?.category || "Other",
           date: splitContext?.date || today(),
           note: splitContext?.note || ""
         });
+        if (ref && ref.id) {
+          linkedExpenseId = ref.id;
+        }
       }
+
+      // 2. Create the split record in Firebase splits collection
+      await addSplit({ 
+        expenseId: linkedExpenseId, 
+        originalAmount, 
+        yourShare, 
+        friendName: form.friendName.trim() 
+      });
 
       setSuccess(true);
       setTimeout(() => {
