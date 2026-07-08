@@ -72,3 +72,14 @@ export async function settleSplit(userId, id) {
     throw error;
   }
 }
+
+export async function unsettleSplit(userId, id) {
+  try {
+    await updateDoc(doc(db, "users", userId, "splits", id), {
+      status: "pending",
+      settledDate: null
+    });
+  } catch (error) {
+    throw error;
+  }
+}

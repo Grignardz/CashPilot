@@ -5,7 +5,7 @@ import { createGoal, deleteGoal as deleteGoalDoc, getGoals, updateGoal as update
 import { defaultProfile, ensureProfile, getProfile, updateProfile as updateProfileDoc, updateSettings as updateSettingsDoc } from "../firebase/services/profile";
 import { addTransaction as addTransactionDoc, deleteTransaction as deleteTransactionDoc, getTransactions } from "../firebase/services/transactions";
 import { addRecurring as addRecurringDoc, deleteRecurring as deleteRecurringDoc, getRecurring, updateRecurring as updateRecurringDoc } from "../firebase/services/recurring";
-import { addSplit as addSplitDoc, deleteSplit as deleteSplitDoc, getSplits, settleSplit as settleSplitDoc } from "../firebase/services/splits";
+import { addSplit as addSplitDoc, deleteSplit as deleteSplitDoc, getSplits, settleSplit as settleSplitDoc, unsettleSplit as unsettleSplitDoc } from "../firebase/services/splits";
 import { getSummary } from "../firebase/services/summary";
 import { friendlyError } from "../firebase/errors";
 import { cleanupOldData, trackSession } from "../utils/dataManagement";
@@ -125,6 +125,7 @@ export function DataProvider({ children }) {
       deleteRecurring: (id) => withUser((userId) => deleteRecurringDoc(userId, id)),
       addSplit: (data) => withUser((userId) => addSplitDoc(userId, data)),
       settleSplit: (id) => withUser((userId) => settleSplitDoc(userId, id)),
+      unsettleSplit: (id) => withUser((userId) => unsettleSplitDoc(userId, id)),
       deleteSplit: (id) => withUser((userId) => deleteSplitDoc(userId, id))
     }),
     [accounts, goals, profile, summary, transactions, recurring, splits, loadingData, error, user]

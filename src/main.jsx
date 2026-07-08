@@ -91,6 +91,7 @@ function CashPilotApp() {
     deleteRecurring: deleteRecurringFromFirebase,
     addSplit,
     settleSplit: settleSplitAction,
+    unsettleSplit: unsettleSplitAction,
     deleteSplit
   } = useData();
   const [screen, setScreen] = useState("home");
@@ -278,7 +279,7 @@ function CashPilotApp() {
           )}
           {screen === "budget" && <BudgetScreen settings={settings} updateSettings={updateSettings} totals={totals} addTransaction={addTransaction} accounts={accounts} />}
           {screen === "calendar" && <CalendarScreen expenses={expenses} totals={totals} onAdd={() => setScreen("add")} />}
-          {screen === "inbox" && <InboxScreen totals={totals} settings={settings} expenses={expenses} onBudget={() => setScreen("budget")} notifications={notifications} onReadNotification={readNotification} splits={splits} settleSplit={settleSplitAction} />}
+          {screen === "inbox" && <InboxScreen totals={totals} settings={settings} expenses={expenses} onBudget={() => setScreen("budget")} notifications={notifications} onReadNotification={readNotification} splits={splits} settleSplit={settleSplitAction} unsettleSplit={unsettleSplitAction} />}
           {screen === "settings" && (
             <SettingsScreen
               profile={profile}
@@ -1675,7 +1676,7 @@ function CalendarScreen({ expenses, totals, onAdd }) {
   );
 }
 
-function InboxScreen({ totals, settings, expenses, onBudget, notifications, onReadNotification, splits, settleSplit }) {
+function InboxScreen({ totals, settings, expenses, onBudget, notifications, onReadNotification, splits, settleSplit, unsettleSplit }) {
   const pendingSplits = (splits || []).filter(s => s.status === "pending");
   const settledSplits = (splits || []).filter(s => s.status === "settled");
 
@@ -1835,12 +1836,15 @@ function InboxScreen({ totals, settings, expenses, onBudget, notifications, onRe
           </div>
           {settledSplits.slice(0, 5).map((split) => (
             <div key={split.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", borderRadius: "8px", padding: "10px 14px", marginBottom: "6px", background: "var(--surface)", border: "1px solid var(--border)", opacity: 0.7 }}>
-              <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ flex: 1, minWidth: 0, paddingRight: "12px" }}>
                 <strong style={{ display: "block", fontSize: "14px", fontWeight: "500", color: "var(--text-secondary)", textDecoration: "line-through" }}>{currency(split.originalAmount)} with {split.friendName}</strong>
                 <p style={{ fontSize: "11px", color: "var(--muted)", margin: "4px 0 0" }}>
                   Settled{split.settledDate ? ` on ${split.settledDate}` : ""}
                 </p>
               </div>
+              <button className="primary-button pressable" style={{ padding: "6px 12px", fontSize: "11px", height: "fit-content", flexShrink: 0, background: "rgba(255, 255, 255, 0.08)", color: "var(--text)", border: "1px solid var(--border)" }} onClick={() => unsettleSplit(split.id)}>
+                Undo
+              </button>
             </div>
           ))}
         </section>
