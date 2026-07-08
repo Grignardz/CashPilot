@@ -318,7 +318,6 @@ function DesktopHeader({ screen, setScreen, onLogout, unreadCount }) {
       <div>
         <p>Expenses manager</p>
         <h1>CashPilot</h1>
-        <p className="credit-line">Made with 💜 by Labhansh</p>
       </div>
       <div className="desktop-actions">
         <button className="invite pressable" onClick={() => setScreen("calendar")}>
@@ -1372,6 +1371,7 @@ function SettingsScreen({ profile, settings, updateProfile, updateSettings, onLo
         </div>
         {message && <p className="form-error success-message">{message}</p>}
       </form>
+      <p className="credit-line settings-credit">Made with 💜 by Labhansh</p>
     </div>
   );
 }
