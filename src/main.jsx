@@ -278,7 +278,7 @@ function CashPilotApp() {
           )}
           {screen === "budget" && <BudgetScreen settings={settings} updateSettings={updateSettings} totals={totals} addTransaction={addTransaction} accounts={accounts} />}
           {screen === "calendar" && <CalendarScreen expenses={expenses} totals={totals} onAdd={() => setScreen("add")} />}
-          {screen === "inbox" && <InboxScreen totals={totals} onBudget={() => setScreen("budget")} notifications={notifications} onReadNotification={readNotification} splits={splits} settleSplit={settleSplitAction} />}
+          {screen === "inbox" && <InboxScreen totals={totals} settings={settings} expenses={expenses} onBudget={() => setScreen("budget")} notifications={notifications} onReadNotification={readNotification} splits={splits} settleSplit={settleSplitAction} />}
           {screen === "settings" && (
             <SettingsScreen
               profile={profile}
@@ -1675,16 +1675,129 @@ function CalendarScreen({ expenses, totals, onAdd }) {
   );
 }
 
-function InboxScreen({ totals, onBudget, notifications, onReadNotification, splits, settleSplit }) {
-  const messages = [
-    ["Daily limit", `You can spend about ${currency(totals.dailyLimit)} per day for the rest of the month.`],
-    ["Food check", `${currency(totals.byCategory.find((item) => item.name === "Food")?.total)} spent on food so far.`],
-    ["Savings goal", totals.left > 0 ? `${currency(totals.left)} left after all logged expenses.` : "You are over budget. Update allowance or reduce spends."],
-    ["Monthly spend", `Total: ${currency(totals.spent)} across ${Object.keys(totals.byDate).length} days with spending.`]
-  ];
-
+function InboxScreen({ totals, settings, expenses, onBudget, notifications, onReadNotification, splits, settleSplit }) {
   const pendingSplits = (splits || []).filter(s => s.status === "pending");
   const settledSplits = (splits || []).filter(s => s.status === "settled");
+
+  const nudges = useMemo(() => {
+    const list = [];
+    const now = new Date();
+    const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+    const daysRemaining = Math.max(1, daysInMonth - now.getDate());
+
+    // 1. Savings Goal Nudge
+    const goalVal = Number(settings?.savingsGoal || 0);
+    if (goalVal > 0) {
+      if (totals.left >= goalVal) {
+        const margin = totals.left - goalVal;
+        list.push({
+          title: "🎉 Savings goal safe",
+          body: `You are on track to save ${currency(goalVal)}. You have a safety margin of ${currency(margin)} remaining.`,
+          type: "success"
+        });
+      } else if (totals.left > 0) {
+        const deficit = goalVal - totals.left;
+        list.push({
+          title: "⚠️ Savings target warning",
+          body: `You are short of your ${currency(goalVal)} savings goal by ${currency(deficit)}. Try to reduce non-essential spend!`,
+          type: "warning"
+        });
+      } else {
+        list.push({
+          title: "🚨 Savings goal deficit",
+          body: `You have completely exhausted your budget. Any extra spend directly cuts into your core savings of ${currency(goalVal)}!`,
+          type: "danger"
+        });
+      }
+    }
+
+    // 2. Safe daily limit / Runway
+    if (totals.left > 0) {
+      list.push({
+        title: "💰 Safe daily limit",
+        body: `You can safely spend ${currency(totals.dailyLimit)} per day for the remaining ${daysRemaining} days.`,
+        type: "success"
+      });
+    } else {
+      list.push({
+        title: "💸 Out of runway",
+        body: `Remaining budget: ₹0. Limit daily spends completely to protect your savings.`,
+        type: "danger"
+      });
+    }
+
+    // 3. Category distribution
+    const sortedCategories = [...(totals.byCategory || [])]
+      .filter(c => c.total > 0)
+      .sort((a, b) => b.total - a.total);
+
+    if (sortedCategories.length > 0) {
+      const topCat = sortedCategories[0];
+      const percentage = Math.round((topCat.total / Math.max(totals.spent, 1)) * 100);
+      if (percentage > 30) {
+        if (topCat.name === "Food") {
+          list.push({
+            title: "🍔 High food expenses",
+            body: `Food accounts for ${percentage}% of your budget (total ${currency(topCat.total)}). Consider cooking or budget meals.`,
+            type: "warning"
+          });
+        } else if (topCat.name === "Entertainment") {
+          list.push({
+            title: "🍿 Fun & movies watch",
+            body: `You spent ${percentage}% of your expenses on entertainment. Keep tabs on leisure spends!`,
+            type: "warning"
+          });
+        } else {
+          list.push({
+            title: `🏷️ Top category: ${topCat.name}`,
+            body: `${topCat.name} accounts for ${percentage}% of your total spends (${currency(topCat.total)}) this month.`,
+            type: "info"
+          });
+        }
+      }
+    }
+
+    // 4. Weekend impulse spend warning
+    const dayOfWeek = now.getDay();
+    if (dayOfWeek === 5 || dayOfWeek === 6 || dayOfWeek === 0) {
+      list.push({
+        title: "🗓️ Weekend spending mode",
+        body: "Weekends are peak spend times. Stick to your daily budget limit and avoid impulsive orders.",
+        type: "warning"
+      });
+    }
+
+    // 5. No spend days
+    const activeDaysThisMonth = Object.keys(totals.byDate || {}).length;
+    const daysPassed = now.getDate();
+    const noSpendDays = daysPassed - activeDaysThisMonth;
+    if (noSpendDays > 0) {
+      list.push({
+        title: "🧘 Budget discipline check",
+        body: `Excellent work! You had ${noSpendDays} 'No Spend' days so far this month.`,
+        type: "success"
+      });
+    } else {
+      list.push({
+        title: "🔥 Continuous spend alert",
+        body: "You've logged spends every day this month. Challenge yourself to a 'No Spend' day tomorrow!",
+        type: "info"
+      });
+    }
+
+    // 6. Fast spend burn rate
+    const averageSpentPerDay = totals.spent / Math.max(daysPassed, 1);
+    const idealAveragePerDay = Number(settings?.allowance || 0) / daysInMonth;
+    if (averageSpentPerDay > idealAveragePerDay * 1.2 && totals.left > 0) {
+      list.push({
+        title: "⚡ High burn rate",
+        body: `You are burning budget at ${currency(averageSpentPerDay)}/day compared to ideal ${currency(idealAveragePerDay)}/day.`,
+        type: "warning"
+      });
+    }
+
+    return list;
+  }, [totals, settings, expenses]);
 
   return (
     <div className="page utility-page">
@@ -1734,7 +1847,7 @@ function InboxScreen({ totals, onBudget, notifications, onReadNotification, spli
       )}
 
       {notifications && notifications.length > 0 && (
-        <section className="student-panel">
+        <section className="student-panel" style={{ marginBottom: "16px" }}>
           <div className="panel-heading">
             <h2>Recent alerts</h2>
             <span>{notifications.length} unread</span>
@@ -1753,16 +1866,38 @@ function InboxScreen({ totals, onBudget, notifications, onReadNotification, spli
       )}
 
       <div className="message-list">
-        {messages.map(([title, body]) => (
-          <button className="message-card pressable" key={title} onClick={onBudget}>
-            <span><Mail size={18} /></span>
-            <div>
-              <strong>{title}</strong>
-              <p>{body}</p>
+        {nudges.map((nudge) => {
+          let NudgeIcon = Mail;
+          let iconColor = "var(--muted)";
+          let iconBg = "rgba(169, 141, 245, 0.15)";
+          if (nudge.type === "success") {
+            NudgeIcon = Sparkles;
+            iconColor = "#c8f0c0";
+            iconBg = "rgba(200, 240, 192, 0.15)";
+          } else if (nudge.type === "warning") {
+            NudgeIcon = Bell;
+            iconColor = "#f5d08d";
+            iconBg = "rgba(245, 208, 141, 0.15)";
+          } else if (nudge.type === "danger") {
+            NudgeIcon = Target;
+            iconColor = "#f59f8d";
+            iconBg = "rgba(245, 159, 141, 0.15)";
+          } else if (nudge.type === "info") {
+            NudgeIcon = Mail;
+            iconColor = "#a98df5";
+            iconBg = "rgba(169, 141, 245, 0.15)";
+          }
+          return (
+            <div className="message-card" key={nudge.title} style={{ cursor: "default" }}>
+              <span style={{ background: iconBg, color: iconColor }}><NudgeIcon size={18} /></span>
+              <div>
+                <strong>{nudge.title}</strong>
+                <p>{nudge.body}</p>
+              </div>
+              <span />
             </div>
-            <ChevronRight size={18} />
-          </button>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
