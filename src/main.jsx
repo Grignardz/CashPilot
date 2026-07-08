@@ -1097,7 +1097,7 @@ function AddExpenseScreen({ onAdd, onOpenModal }) {
     title: "",
     amount: "",
     category: "",
-    date: "",
+    date: today(),
     note: ""
   });
 
