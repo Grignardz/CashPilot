@@ -1263,18 +1263,6 @@ function RecordsScreen({ query, setQuery, expenses, onDelete, onAdd, splits, set
                         </small>
                       </div>
                       <div style={{ display: "flex", alignItems: "center", gap: "8px", flexShrink: 0 }}>
-                        <span 
-                          style={{ 
-                            fontSize: "10px", 
-                            fontWeight: "500",
-                            padding: "2px 6px", 
-                            borderRadius: "4px", 
-                            background: isPending ? "rgba(255, 200, 100, 0.08)" : "rgba(200, 240, 192, 0.08)", 
-                            color: isPending ? "var(--warning)" : "var(--accent-light)" 
-                          }}
-                        >
-                          {isPending ? "Pending" : "Settled"}
-                        </span>
                         <button 
                           className="primary-button pressable" 
                           style={{ 
