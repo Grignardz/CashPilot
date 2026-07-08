@@ -4,7 +4,6 @@ import { createPortal } from "react-dom";
 import {
   ArrowRightLeft,
   Bell,
-  BookOpen,
   Bus,
   CalendarDays,
   ChevronRight,
@@ -27,7 +26,13 @@ import {
   User,
   Wallet,
   Trash2,
-  X
+  X,
+  ShoppingCart,
+  ShoppingBag,
+  Tv,
+  GraduationCap,
+  HeartPulse,
+  Gift
 } from "lucide-react";
 import { AuthProvider } from "./context/AuthContext";
 import { DataProvider } from "./context/DataContext";
@@ -46,7 +51,13 @@ import "./styles.css";
 const categories = [
   { name: "Food", icon: Utensils, color: "#c8f0c0" },
   { name: "Transport", icon: Bus, color: "#d4c8f5" },
-  { name: "Books", icon: BookOpen, color: "#f2d7a8" },
+  { name: "Groceries", icon: ShoppingCart, color: "#e8f5e9" },
+  { name: "Shopping", icon: ShoppingBag, color: "#ffe5ec" },
+  { name: "Bills & Rent", icon: Home, color: "#ffedd5" },
+  { name: "Subscriptions", icon: Tv, color: "#ffd6ff" },
+  { name: "Academics", icon: GraduationCap, color: "#e0f2fe" },
+  { name: "Health", icon: HeartPulse, color: "#fee2e2" },
+  { name: "Gifts", icon: Gift, color: "#fef9c3" },
   { name: "Hangout", icon: Coffee, color: "#bfe8ff" },
   { name: "Other", icon: ReceiptText, color: "#f5c8d8" }
 ];
