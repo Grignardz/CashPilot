@@ -67,7 +67,7 @@ export function predictMonthlySpending(currentDay, currentSpent, totalDays, budg
     willExceed,
     projectedSavings,
     dailyRate: Math.round(dailyRate * 100) / 100,
-    daysUntilBudgetExhausted: dailyRate > 0 ? Math.floor((available - currentSpent) / dailyRate) : Infinity
+    daysUntilBudgetExhausted: dailyRate > 0 ? Math.max(0, Math.floor((available - currentSpent) / dailyRate)) : Infinity
   };
 }
 
@@ -81,7 +81,8 @@ export function getMonthContext(now = new Date()) {
   const month = now.getMonth();
   const totalDays = daysInMonth(year, month);
   const currentDay = now.getDate();
-  const daysRemaining = totalDays - currentDay;
+  // +1 to include today in the remaining days calculation
+  const daysRemaining = totalDays - currentDay + 1;
 
   return {
     year,

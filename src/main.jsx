@@ -55,7 +55,11 @@ const currency = (value) =>
     maximumFractionDigits: 0
   })}`;
 
-const today = () => new Date().toISOString().slice(0, 10);
+// Use local date (not UTC) — critical for IST and other UTC+ timezones
+const today = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+};
 
 function App() {
   return (
@@ -132,19 +136,31 @@ function CashPilotApp() {
   const expenses = useMemo(() => transactions.map(transactionToExpense), [transactions]);
 
   const totals = useMemo(() => {
-    const spent = expenses.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+    const now = new Date();
+    const todayKey = today();
+    const monthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+
+    // Only count expense-type transactions from the current month
+    const monthExpenses = expenses.filter(
+      (item) => item.type === "expense" && item.date.startsWith(monthKey)
+    );
+
+    const spent = monthExpenses.reduce((sum, item) => sum + Number(item.amount || 0), 0);
     const allowance = settings.allowance;
     const left = allowance - spent;
-    const todaySpent = expenses
-      .filter((item) => item.date === today())
+
+    const todaySpent = monthExpenses
+      .filter((item) => item.date === todayKey)
       .reduce((sum, item) => sum + Number(item.amount || 0), 0);
+
     const byCategory = categories.map((cat) => ({
       ...cat,
-      total: expenses
+      total: monthExpenses
         .filter((item) => item.category === cat.name)
         .reduce((sum, item) => sum + Number(item.amount || 0), 0)
     }));
-    const byDate = expenses.reduce((map, item) => {
+
+    const byDate = monthExpenses.reduce((map, item) => {
       map[item.date] = (map[item.date] || 0) + Number(item.amount || 0);
       return map;
     }, {});
@@ -156,7 +172,9 @@ function CashPilotApp() {
       byCategory,
       byDate,
       dailyLimit: budgetMetrics.safeDaily,
-      savingsProgress: Math.min(100, Math.max(0, ((left > 0 ? left : 0) / settings.savingsGoal) * 100))
+      savingsProgress: settings.savingsGoal > 0
+        ? Math.min(100, Math.max(0, ((left > 0 ? left : 0) / settings.savingsGoal) * 100))
+        : (left > 0 ? 100 : 0)
     };
   }, [expenses, settings, budgetMetrics.safeDaily]);
 
@@ -474,7 +492,7 @@ function HomeScreen({ expenses, totals, settings, goals, aiOpen, onDismissAi, on
       <div className="home-actions">
         <button className="invite pressable">
           <CalendarDays size={15} />
-          May
+          {new Date().toLocaleDateString("en-IN", { month: "short", year: "numeric" })}
         </button>
         <div className="home-action-right">
           <button className="icon-ring pressable" aria-label="Notifications">
