@@ -234,7 +234,7 @@ function CashPilotApp() {
               onAdd={() => setScreen("add")}
             />
           )}
-          {screen === "budget" && <BudgetScreen settings={settings} updateSettings={updateSettings} totals={totals} addTransaction={addTransaction} accounts={accounts} firebaseRecurring={firebaseRecurring} addRecurringToFirebase={addRecurringToFirebase} deleteRecurringFromFirebase={deleteRecurringFromFirebase} />}
+          {screen === "budget" && <BudgetScreen settings={settings} updateSettings={updateSettings} totals={totals} addTransaction={addTransaction} accounts={accounts} />}
           {screen === "calendar" && <CalendarScreen expenses={expenses} totals={totals} onAdd={() => setScreen("add")} />}
           {screen === "inbox" && <InboxScreen totals={totals} onBudget={() => setScreen("budget")} notifications={notifications} onReadNotification={readNotification} splits={splits} settleSplit={settleSplitAction} />}
           {screen === "settings" && (
@@ -1082,10 +1082,8 @@ function ExpenseRow({ expense, onDelete }) {
   );
 }
 
-function BudgetScreen({ settings, updateSettings, totals, addTransaction, accounts, firebaseRecurring, addRecurringToFirebase, deleteRecurringFromFirebase }) {
+function BudgetScreen({ settings, updateSettings, totals, addTransaction, accounts }) {
   const [addMoneyOpen, setAddMoneyOpen] = useState(false);
-  const [addRecurringOpen, setAddRecurringOpen] = useState(false);
-  const [recurringForm, setRecurringForm] = useState({ name: "", amount: "", category: "Food", frequency: "monthly" });
   const [addAmount, setAddAmount] = useState("");
   const [addNote, setAddNote] = useState("");
   const [adding, setAdding] = useState(false);
@@ -1168,91 +1166,7 @@ function BudgetScreen({ settings, updateSettings, totals, addTransaction, accoun
         </div>
       </section>
 
-      <section className="student-panel" style={{ marginTop: "20px" }}>
-        <div className="panel-heading">
-          <h2>Recurring expenses</h2>
-          <button className="primary-button pressable" style={{ padding: "6px 14px", fontSize: "13px" }} onClick={() => setAddRecurringOpen(true)}>
-            <Plus size={14} /> Add
-          </button>
-        </div>
-        {(!firebaseRecurring || firebaseRecurring.length === 0) && (
-          <p style={{ color: "var(--muted)", fontSize: "14px", padding: "12px 0" }}>No recurring expenses yet. Add subscriptions, rent, or regular bills.</p>
-        )}
-        {firebaseRecurring && firebaseRecurring.filter(r => r.isActive).map((item) => {
-          const isDue = item.nextDueDate && item.nextDueDate <= new Date().toISOString().slice(0, 10);
-          return (
-            <div className="category-row" key={item.id} style={{ background: isDue ? "rgba(255, 100, 100, 0.08)" : undefined, borderRadius: "8px", padding: "10px 12px", marginBottom: "6px" }}>
-              <div style={{ flex: 1 }}>
-                <strong>{item.name}</strong>
-                <p style={{ fontSize: "12px", color: "var(--muted)", margin: "2px 0 0" }}>
-                  {currency(item.amount)} · {item.category} · {item.frequency}{isDue ? " · Due!" : item.nextDueDate ? ` · Next: ${item.nextDueDate}` : ""}
-                </p>
-              </div>
-              <button className="pressable" style={{ background: "none", border: "none", color: "var(--muted)", cursor: "pointer" }} onClick={() => deleteRecurringFromFirebase(item.id)} aria-label="Delete recurring expense">
-                <X size={16} />
-              </button>
-            </div>
-          );
-        })}
-      </section>
 
-      {addRecurringOpen && createPortal(
-        <div className="modal-backdrop" onMouseDown={() => setAddRecurringOpen(false)}>
-          <div className="modal-card" onMouseDown={(e) => e.stopPropagation()}>
-            <button className="close-button" aria-label="Close" onClick={() => setAddRecurringOpen(false)}>
-              <X size={16} />
-            </button>
-            <div className="modal-icon">
-              <ArrowRightLeft size={20} />
-            </div>
-            <h2>Add recurring expense</h2>
-            <form className="expense-form" style={{ marginTop: "12px", gap: "10px" }} onSubmit={async (e) => {
-              e.preventDefault();
-              if (!recurringForm.name.trim() || !recurringForm.amount) return;
-              const nextDue = (() => {
-                const d = new Date();
-                switch (recurringForm.frequency) {
-                  case "daily": d.setDate(d.getDate() + 1); break;
-                  case "weekly": d.setDate(d.getDate() + 7); break;
-                  case "biweekly": d.setDate(d.getDate() + 14); break;
-                  default: d.setMonth(d.getMonth() + 1); break;
-                }
-                return d.toISOString().slice(0, 10);
-              })();
-              await addRecurringToFirebase({
-                name: recurringForm.name.trim(),
-                amount: Number(recurringForm.amount),
-                category: recurringForm.category,
-                frequency: recurringForm.frequency,
-                nextDueDate: nextDue,
-                isActive: true,
-                lastLoggedDate: null
-              });
-              setRecurringForm({ name: "", amount: "", category: "Food", frequency: "monthly" });
-              setAddRecurringOpen(false);
-            }}>
-              <label>
-                <span>Name</span>
-                <input value={recurringForm.name} onChange={(e) => setRecurringForm({ ...recurringForm, name: e.target.value })} placeholder="e.g. Netflix, Rent" style={{ height: "44px", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)", background: "var(--bg)", color: "var(--text)", padding: "0 14px", outline: "none", width: "100%" }} />
-              </label>
-              <label>
-                <span>Amount</span>
-                <AmountInput value={recurringForm.amount} onChange={(val) => setRecurringForm({ ...recurringForm, amount: val })} />
-              </label>
-              <label>
-                <span>Category</span>
-                <CustomDropdown value={recurringForm.category} options={categories.map(c => c.name)} onChange={(val) => setRecurringForm({ ...recurringForm, category: val })} />
-              </label>
-              <label>
-                <span>Frequency</span>
-                <CustomDropdown value={recurringForm.frequency} options={["daily", "weekly", "biweekly", "monthly"]} onChange={(val) => setRecurringForm({ ...recurringForm, frequency: val })} />
-              </label>
-              <button className="primary-button pressable" type="submit" disabled={!recurringForm.name.trim() || !recurringForm.amount}>Add recurring</button>
-            </form>
-          </div>
-        </div>,
-        document.body
-      )}
 
       {addMoneyOpen && createPortal(
         <div className="modal-backdrop" onMouseDown={() => setAddMoneyOpen(false)}>
