@@ -1813,14 +1813,14 @@ function InboxScreen({ totals, settings, expenses, onBudget, notifications, onRe
             <span>{pendingSplits.length} pending</span>
           </div>
           {pendingSplits.map((split) => (
-            <div className="category-row" key={split.id} style={{ borderRadius: "8px", padding: "10px 12px", marginBottom: "6px", background: "rgba(255, 200, 100, 0.06)" }}>
-              <div style={{ flex: 1 }}>
-                <strong>You split {currency(split.originalAmount)} with {split.friendName}</strong>
-                <p style={{ fontSize: "12px", color: "var(--muted)", margin: "2px 0 0" }}>
-                  Your share: {currency(split.yourShare)} · Friend owes: {currency(split.friendShare)} · pending
+            <div key={split.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", borderRadius: "8px", padding: "12px 14px", marginBottom: "6px", background: "rgba(255, 200, 100, 0.06)", border: "1px solid rgba(255, 200, 100, 0.12)" }}>
+              <div style={{ flex: 1, minWidth: 0, paddingRight: "12px" }}>
+                <strong style={{ display: "block", fontSize: "14px", fontWeight: "600", color: "var(--text)" }}>You split {currency(split.originalAmount)} with {split.friendName}</strong>
+                <p style={{ fontSize: "12px", color: "var(--text-secondary)", margin: "4px 0 0", lineHeight: "1.4" }}>
+                  Your share: {currency(split.yourShare)} · Friend owes: {currency(split.friendShare)}
                 </p>
               </div>
-              <button className="primary-button pressable" style={{ padding: "6px 12px", fontSize: "12px" }} onClick={() => settleSplit(split.id)}>
+              <button className="primary-button pressable" style={{ padding: "8px 16px", fontSize: "12px", height: "fit-content", flexShrink: 0 }} onClick={() => settleSplit(split.id)}>
                 Settle
               </button>
             </div>
@@ -1829,15 +1829,15 @@ function InboxScreen({ totals, settings, expenses, onBudget, notifications, onRe
       )}
 
       {settledSplits.length > 0 && (
-        <section className="student-panel" style={{ marginBottom: "16px", opacity: 0.6 }}>
+        <section className="student-panel" style={{ marginBottom: "16px" }}>
           <div className="panel-heading">
             <h2>Settled splits</h2>
           </div>
           {settledSplits.slice(0, 5).map((split) => (
-            <div className="category-row" key={split.id} style={{ borderRadius: "8px", padding: "8px 12px", marginBottom: "4px" }}>
-              <div style={{ flex: 1 }}>
-                <strong style={{ textDecoration: "line-through" }}>{currency(split.originalAmount)} with {split.friendName}</strong>
-                <p style={{ fontSize: "12px", color: "var(--muted)", margin: "2px 0 0" }}>
+            <div key={split.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", borderRadius: "8px", padding: "10px 14px", marginBottom: "6px", background: "var(--surface)", border: "1px solid var(--border)", opacity: 0.7 }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <strong style={{ display: "block", fontSize: "14px", fontWeight: "500", color: "var(--text-secondary)", textDecoration: "line-through" }}>{currency(split.originalAmount)} with {split.friendName}</strong>
+                <p style={{ fontSize: "11px", color: "var(--muted)", margin: "4px 0 0" }}>
                   Settled{split.settledDate ? ` on ${split.settledDate}` : ""}
                 </p>
               </div>
