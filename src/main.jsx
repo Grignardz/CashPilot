@@ -215,6 +215,10 @@ function CashPilotApp() {
       const newAllowance = Math.max(0, settings.allowance - Number(tx.amount || 0));
       await updateSettings({ ...settings, allowance: newAllowance });
     }
+    const associatedSplit = (splits || []).find((s) => s.expenseId === id);
+    if (associatedSplit) {
+      await deleteSplit(associatedSplit.id);
+    }
     await deleteTransaction(id);
     refreshAlerts();
   };
@@ -296,6 +300,7 @@ function CashPilotApp() {
               splits={splits}
               settleSplit={settleSplitAction}
               unsettleSplit={unsettleSplitAction}
+              deleteSplit={deleteSplit}
             />
           )}
           {screen === "budget" && <BudgetScreen settings={settings} updateSettings={updateSettings} totals={totals} addTransaction={addTransaction} accounts={accounts} />}
@@ -1184,7 +1189,7 @@ function AddExpenseScreen({ onAdd, onOpenModal }) {
   );
 }
 
-function RecordsScreen({ query, setQuery, expenses, onDelete, onAdd, splits, settleSplit, unsettleSplit }) {
+function RecordsScreen({ query, setQuery, expenses, onDelete, onAdd, splits, settleSplit, unsettleSplit, deleteSplit }) {
   const [splitsSpaceOpen, setSplitsSpaceOpen] = useState(false);
 
   const filtered = expenses.filter((item) =>
@@ -1290,6 +1295,28 @@ function RecordsScreen({ query, setQuery, expenses, onDelete, onAdd, splits, set
                           onClick={() => isPending ? settleSplit(split.id) : unsettleSplit(split.id)}
                         >
                           {isPending ? "Settle" : "Settled"}
+                        </button>
+                        <button 
+                          className="delete-expense pressable" 
+                          style={{ 
+                            width: "28px", 
+                            height: "28px", 
+                            margin: 0, 
+                            padding: 0, 
+                            display: "grid", 
+                            placeItems: "center" 
+                          }} 
+                          onClick={async () => {
+                            if (window.confirm(`Delete split with ${split.friendName}?`)) {
+                              if (split.expenseId) {
+                                await onDelete(split.expenseId);
+                              } else {
+                                await deleteSplit(split.id);
+                              }
+                            }
+                          }}
+                        >
+                          <Trash2 size={13} />
                         </button>
                       </div>
                     </div>
