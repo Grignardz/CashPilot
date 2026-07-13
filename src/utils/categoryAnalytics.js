@@ -3,6 +3,8 @@
  * Trend analysis, insights, and anomaly detection by spending category.
  */
 
+import { getMonthContext } from "./budgetCalculations";
+
 const CATEGORIES = ["Food", "Transport", "Books", "Hangout", "Other"];
 
 /**
@@ -21,8 +23,8 @@ export function generateCategoryTrends(expenses, timeframe = "month") {
     const weekKey = weekAgo.toISOString().slice(0, 10);
     filtered = filtered.filter((tx) => (tx.dateKey || "") >= weekKey);
   } else if (timeframe === "month") {
-    const monthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-    filtered = filtered.filter((tx) => (tx.dateKey || "").startsWith(monthKey));
+    const ctx = getMonthContext(now);
+    filtered = filtered.filter((tx) => (tx.dateKey || "") >= ctx.startDateKey && (tx.dateKey || "") <= ctx.endDateKey);
   }
 
   const totalSpent = filtered.reduce((sum, tx) => sum + Number(tx.amount || 0), 0);
@@ -96,20 +98,20 @@ export function generateCategoryTimeSeries(expenses, weeks = 4) {
  */
 export function generateCategoryInsights(expenses, category, totalDays, daysRemaining) {
   const now = new Date();
-  const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-  const daysPassed = totalDays - daysRemaining;
-
-  // Current month
+  const ctx = getMonthContext(now);
+  // Current cycle
   const currentMonthExpenses = expenses.filter(
-    (tx) => tx.type === "expense" && tx.category === category && (tx.dateKey || "").startsWith(currentMonthKey)
+    (tx) => tx.type === "expense" && tx.category === category && tx.dateKey >= ctx.startDateKey && tx.dateKey <= ctx.endDateKey
   );
   const currentTotal = currentMonthExpenses.reduce((sum, tx) => sum + Number(tx.amount || 0), 0);
 
-  // Previous month
-  const prevMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-  const prevMonthKey = `${prevMonth.getFullYear()}-${String(prevMonth.getMonth() + 1).padStart(2, "0")}`;
+  // Previous cycle
+  const currentStartDate = new Date(ctx.startDateKey);
+  const prevCycleDate = new Date(currentStartDate.getTime() - 24 * 60 * 60 * 1000);
+  const prevCtx = getMonthContext(prevCycleDate);
+
   const prevMonthExpenses = expenses.filter(
-    (tx) => tx.type === "expense" && tx.category === category && (tx.dateKey || "").startsWith(prevMonthKey)
+    (tx) => tx.type === "expense" && tx.category === category && tx.dateKey >= prevCtx.startDateKey && tx.dateKey <= prevCtx.endDateKey
   );
   const prevTotal = prevMonthExpenses.reduce((sum, tx) => sum + Number(tx.amount || 0), 0);
 

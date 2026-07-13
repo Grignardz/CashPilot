@@ -77,19 +77,40 @@ export function predictMonthlySpending(currentDay, currentSpent, totalDays, budg
  * @returns {object} Month context
  */
 export function getMonthContext(now = new Date()) {
-  const year = now.getFullYear();
-  const month = now.getMonth();
-  const totalDays = daysInMonth(year, month);
-  const currentDay = now.getDate();
-  // +1 to include today in the remaining days calculation
-  const daysRemaining = totalDays - currentDay + 1;
+  const d = new Date(now);
+  let startDate, endDate;
+  
+  if (d.getDate() >= 7) {
+    startDate = new Date(d.getFullYear(), d.getMonth(), 7);
+    endDate = new Date(d.getFullYear(), d.getMonth() + 1, 6);
+  } else {
+    startDate = new Date(d.getFullYear(), d.getMonth() - 1, 7);
+    endDate = new Date(d.getFullYear(), d.getMonth(), 6);
+  }
+
+  const formatDate = (date) => {
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+  };
+
+  const startDateKey = formatDate(startDate);
+  const endDateKey = formatDate(endDate);
+  
+  const totalDays = Math.round((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+  const daysPassed = Math.max(1, Math.min(totalDays, Math.round((d.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1));
+  const daysRemaining = Math.max(1, Math.min(totalDays, Math.round((endDate.getTime() - d.getTime()) / (1000 * 60 * 60 * 24)) + 1));
+
+  const year = startDate.getFullYear();
+  const month = startDate.getMonth();
 
   return {
     year,
     month,
     totalDays,
-    currentDay,
+    currentDay: d.getDate(),
+    daysPassed,
     daysRemaining,
+    startDateKey,
+    endDateKey,
     monthKey: `${year}-${String(month + 1).padStart(2, "0")}`
   };
 }
@@ -101,8 +122,22 @@ export function getMonthContext(now = new Date()) {
  * @returns {number} Total spent
  */
 export function sumExpensesForMonth(transactions, monthKey) {
+  const [yearStr, monthStr] = monthKey.split("-");
+  const year = parseInt(yearStr, 10);
+  const month = parseInt(monthStr, 10) - 1;
+  
+  const startDate = new Date(year, month, 7);
+  const endDate = new Date(year, month + 1, 6);
+  
+  const formatDate = (date) => {
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+  };
+  
+  const startKey = formatDate(startDate);
+  const endKey = formatDate(endDate);
+
   return transactions
-    .filter((tx) => tx.type === "expense" && (tx.dateKey || "").startsWith(monthKey))
+    .filter((tx) => tx.type === "expense" && tx.dateKey >= startKey && tx.dateKey <= endKey)
     .reduce((sum, tx) => sum + Number(tx.amount || 0), 0);
 }
 

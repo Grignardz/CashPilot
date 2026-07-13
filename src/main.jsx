@@ -47,6 +47,7 @@ import { getTierForAmount } from "./utils/calendarHeatmap";
 import { suggestCategoryAndName, getSpendingAdvice, isGeminiConfigured } from "./utils/geminiIntegration";
 import { exportDataAsJSON, exportAsCSV, downloadFile } from "./utils/dataExport";
 import { generateMonthlyRecap, saveMonthlyRecap } from "./utils/dataManagement";
+import { getMonthContext } from "./utils/budgetCalculations";
 import "./styles.css";
 
 const categories = [
@@ -114,6 +115,8 @@ function CashPilotApp() {
   const [splitContext, setSplitContext] = useState(null);
   const [query, setQuery] = useState("");
   const [theme, setTheme] = useState(() => localStorage.getItem("cashpilot-theme") || "dark");
+  const [showResetModal, setShowResetModal] = useState(false);
+  const [prevCycleLeftover, setPrevCycleLeftover] = useState(0);
   const settings = profile.settings;
 
   useEffect(() => {
@@ -122,6 +125,82 @@ function CashPilotApp() {
   }, [theme]);
 
   const toggleTheme = () => setTheme((t) => t === "dark" ? "light" : "dark");
+
+  // Onboarding completion check: Auto-mark current cycle configured if no keys exist
+  useEffect(() => {
+    if (settings && settings.allowance > 0) {
+      const currentCycleKey = budgetMetrics.context.monthKey;
+      const keys = Object.keys(localStorage).filter(k => k.startsWith("cashpilot-budget-configured-"));
+      if (keys.length === 0) {
+        localStorage.setItem(`cashpilot-budget-configured-${currentCycleKey}`, "true");
+      }
+    }
+  }, [settings?.allowance, budgetMetrics.context.monthKey]);
+
+  // Budget cycle auto-reset/rollover check starting on 7th
+  useEffect(() => {
+    // Only check if user is logged in, data sync is finished, and onboarding is complete
+    if (loadingData || !user || !settings || settings.allowance === 0) return;
+
+    const currentCycleKey = budgetMetrics.context.monthKey;
+    const isConfigured = localStorage.getItem(`cashpilot-budget-configured-${currentCycleKey}`) === "true";
+
+    // If current cycle isn't marked configured yet
+    if (!isConfigured) {
+      // Calculate previous cycle's leftover balance
+      const currentStartDate = new Date(budgetMetrics.context.startDateKey);
+      const prevCycleDate = new Date(currentStartDate.getTime() - 24 * 60 * 60 * 1000);
+      const prevCtx = getMonthContext(prevCycleDate);
+
+      // Sum expenses in the previous cycle range
+      const prevSpent = transactions
+        .filter((tx) => tx.type === "expense" && tx.dateKey >= prevCtx.startDateKey && tx.dateKey <= prevCtx.endDateKey)
+        .reduce((sum, tx) => sum + Number(tx.amount || 0), 0);
+
+      // Calculate spendable leftover
+      const prevSpendable = Math.max(0, settings.allowance - settings.savingsGoal);
+      const remaining = prevSpendable - prevSpent;
+
+      if (remaining > 0) {
+        setPrevCycleLeftover(remaining);
+      } else {
+        setPrevCycleLeftover(0);
+      }
+      setShowResetModal(true);
+    }
+  }, [loadingData, user, settings, transactions.length, budgetMetrics.context.monthKey]);
+
+  const handleSaveBudgetCycle = async (newAllowance, newSavingsGoal, rolloverChecked) => {
+    try {
+      const rolloverAmt = rolloverChecked ? Math.round(prevCycleLeftover) : 0;
+      
+      // If there is rollover, add a transaction to record it
+      if (rolloverAmt > 0) {
+        await addTransaction({
+          amount: rolloverAmt,
+          type: "income",
+          category: "Other",
+          accountId: accounts?.[0]?.id || "",
+          note: "Rollover from previous cycle",
+          dateKey: today()
+        });
+      }
+
+      // Update allowance settings with rollover included
+      await updateSettings({
+        allowance: newAllowance + rolloverAmt,
+        savingsGoal: newSavingsGoal
+      });
+
+      // Mark cycle configured
+      const currentCycleKey = budgetMetrics.context.monthKey;
+      localStorage.setItem(`cashpilot-budget-configured-${currentCycleKey}`, "true");
+      
+      setShowResetModal(false);
+    } catch (err) {
+      console.error("Failed to save budget cycle", err);
+    }
+  };
 
   // Utility hooks integration
   const budgetMetrics = useBudgetMetrics(transactions, settings);
@@ -152,13 +231,12 @@ function CashPilotApp() {
   const expenses = useMemo(() => transactions.map(transactionToExpense), [transactions]);
 
   const totals = useMemo(() => {
-    const now = new Date();
     const todayKey = today();
-    const monthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+    const { startDateKey, endDateKey } = budgetMetrics.context;
 
-    // Only count expense-type transactions from the current month
+    // Only count expense-type transactions from the current month/cycle
     const monthExpenses = expenses.filter(
-      (item) => item.type === "expense" && item.date.startsWith(monthKey)
+      (item) => item.type === "expense" && item.date >= startDateKey && item.date <= endDateKey
     );
 
     const spent = monthExpenses.reduce((sum, item) => sum + Number(item.amount || 0), 0);
@@ -324,6 +402,14 @@ function CashPilotApp() {
         </div>
         <BottomTabs active={screen} setScreen={setScreen} />
       </section>
+      {showResetModal && (
+        <BudgetResetModal 
+          allowance={settings.allowance} 
+          savingsGoal={settings.savingsGoal} 
+          prevLeftover={prevCycleLeftover}
+          onSave={handleSaveBudgetCycle}
+        />
+      )}
       {modalOpen && (
         <StudentModal 
           onClose={() => { setModalOpen(false); setSplitContext(null); }} 
@@ -697,11 +783,8 @@ function HomeScreen({ expenses, totals, settings, goals, aiOpen, onDismissAi, on
 }
 
 function AreaChart({ totals, allowance }) {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = now.getMonth();
-  const todayDate = now.getDate();
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const ctx = getMonthContext();
+  const { startDateKey, endDateKey, totalDays, daysPassed } = ctx;
   const width = 340;
   const height = 165;
   const topPadding = 14;
@@ -731,9 +814,17 @@ function AreaChart({ totals, allowance }) {
   // Pre-calculate daily cumulative expenses up to today
   const dailyCumulativeExpenses = [];
   let cumulative = 0;
-  for (let d = 1; d <= daysInMonth; d++) {
-    const dateKey = `${year}-${String(month + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
-    if (d <= todayDate) {
+  
+  // Parse startDateKey
+  const startYear = parseInt(startDateKey.slice(0, 4), 10);
+  const startMonth = parseInt(startDateKey.slice(5, 7), 10) - 1;
+  const startDay = parseInt(startDateKey.slice(8, 10), 10);
+
+  for (let dayIndex = 1; dayIndex <= totalDays; dayIndex++) {
+    const currentLoopDate = new Date(startYear, startMonth, startDay + dayIndex - 1);
+    const dateKey = `${currentLoopDate.getFullYear()}-${String(currentLoopDate.getMonth() + 1).padStart(2, "0")}-${String(currentLoopDate.getDate()).padStart(2, "0")}`;
+    
+    if (dayIndex <= daysPassed) {
       cumulative += Number(totals.byDate[dateKey] || 0);
     }
     dailyCumulativeExpenses.push(cumulative);
@@ -741,7 +832,7 @@ function AreaChart({ totals, allowance }) {
 
   // Find minVal across all days to handle over-budget scenarios gracefully
   let minVal = maxVal;
-  for (let d = 1; d <= todayDate; d++) {
+  for (let d = 1; d <= daysPassed; d++) {
     const remaining = maxVal - dailyCumulativeExpenses[d - 1];
     if (remaining < minVal) {
       minVal = remaining;
@@ -752,15 +843,15 @@ function AreaChart({ totals, allowance }) {
 
   const valSpan = Math.max(maxVal - minVal, 1);
 
-  // Generate points: index 0 is start of month (day 0), 1..daysInMonth are end of days
-  const points = Array.from({ length: daysInMonth + 1 }, (_, index) => {
+  // Generate points: index 0 is start of cycle (day 0), 1..totalDays are end of days
+  const points = Array.from({ length: totalDays + 1 }, (_, index) => {
     const day = index;
-    const x = (index / daysInMonth) * width;
+    const x = (index / totalDays) * width;
     
     let remaining;
     if (day === 0) {
       remaining = maxVal;
-    } else if (day <= todayDate) {
+    } else if (day <= daysPassed) {
       remaining = maxVal - dailyCumulativeExpenses[day - 1];
     } else {
       remaining = totals.left;
@@ -2365,6 +2456,113 @@ function InstallPrompt() {
       </div>
     </div>,
     document.body
+  );
+}
+
+function BudgetResetModal({ allowance, savingsGoal, prevLeftover, onSave }) {
+  const [form, setForm] = useState({
+    allowance: String(allowance || ""),
+    savingsGoal: String(savingsGoal || ""),
+    rollover: prevLeftover > 0
+  });
+  const [error, setError] = useState("");
+
+  const submit = (event) => {
+    event.preventDefault();
+    const allowanceVal = Number(form.allowance.replace(/[^0-9]/g, "")) || 0;
+    const savingsVal = Number(form.savingsGoal.replace(/[^0-9]/g, "")) || 0;
+
+    if (allowanceVal <= 0) {
+      setError("Please set a monthly allowance greater than 0.");
+      return;
+    }
+    if (savingsVal > allowanceVal) {
+      setError("Savings goal cannot be higher than your monthly allowance.");
+      return;
+    }
+
+    setError("");
+    onSave(allowanceVal, savingsVal, form.rollover);
+  };
+
+  const cycleName = new Date(getMonthContext().startDateKey).toLocaleDateString("en-IN", {
+    month: "long",
+    year: "numeric"
+  });
+
+  return (
+    <div className="modal-backdrop" role="dialog" aria-modal="true" aria-label="Configure New Month Budget">
+      <section className="modal-card" style={{ maxWidth: "420px" }}>
+        <div className="modal-icon">
+          <Sparkles size={22} />
+        </div>
+        <h2 style={{ fontSize: "20px", marginTop: "12px", textAlign: "center" }}>
+          Configure Budget for {cycleName}
+        </h2>
+        <p className="auth-subtitle" style={{ textAlign: "center", marginBottom: "16px" }}>
+          It's the 7th! A new monthly budget cycle has started. Let's set up your targets.
+        </p>
+
+        <form className="auth-form" onSubmit={submit}>
+          <label>
+            <span>Monthly Budget (Allowance)</span>
+            <input
+              type="text"
+              inputMode="numeric"
+              value={form.allowance}
+              onChange={(e) => setForm({ ...form, allowance: e.target.value.replace(/[^0-9]/g, "") })}
+              placeholder={String(allowance)}
+              required
+            />
+          </label>
+          <label>
+            <span>Savings Target Goal</span>
+            <input
+              type="text"
+              inputMode="numeric"
+              value={form.savingsGoal}
+              onChange={(e) => setForm({ ...form, savingsGoal: e.target.value.replace(/[^0-9]/g, "") })}
+              placeholder={String(savingsGoal)}
+              required
+            />
+          </label>
+
+          {prevLeftover > 0 && (
+            <div style={{
+              display: "flex",
+              alignItems: "flex-start",
+              gap: "10px",
+              padding: "12px",
+              background: "var(--accent-light)",
+              borderRadius: "8px",
+              marginTop: "8px",
+              marginBottom: "12px",
+              border: "1px solid var(--accent)"
+            }}>
+              <input
+                type="checkbox"
+                id="rollover"
+                checked={form.rollover}
+                onChange={(e) => setForm({ ...form, rollover: e.target.checked })}
+                style={{ marginTop: "4px", width: "auto", cursor: "pointer" }}
+              />
+              <label htmlFor="rollover" style={{ fontSize: "13px", color: "var(--text)", margin: 0, cursor: "pointer", fontWeight: "normal" }}>
+                <strong>Roll over leftover balance</strong>
+                <span style={{ display: "block", fontSize: "11px", color: "var(--text-muted)", marginTop: "2px" }}>
+                  Add ₹{Math.round(prevLeftover)} from last month to this month's budget (Making total: ₹{Math.round((Number(form.allowance) || allowance) + prevLeftover)})
+                </span>
+              </label>
+            </div>
+          )}
+
+          {error && <p className="form-error">{error}</p>}
+
+          <button className="primary-button pressable" type="submit" style={{ marginTop: "12px" }}>
+            Save & Start Cycle
+          </button>
+        </form>
+      </section>
+    </div>
   );
 }
 

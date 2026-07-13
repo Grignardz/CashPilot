@@ -3,6 +3,8 @@
  * Monthly recaps, data cleanup, storage monitoring, and session tracking.
  */
 
+import { getMonthContext } from "./budgetCalculations";
+
 const RECAPS_KEY = "cashpilot-monthly-recaps";
 const SESSION_KEY = "cashpilot-session-metadata";
 
@@ -18,8 +20,19 @@ const SESSION_KEY = "cashpilot-session-metadata";
  */
 export function generateMonthlyRecap(month, year, expenses, budget, savingsGoal, prevRecap = null) {
   const monthKey = `${year}-${String(month + 1).padStart(2, "0")}`;
+  const [yearStr, monthStr] = monthKey.split("-");
+  const y = parseInt(yearStr, 10);
+  const m = parseInt(monthStr, 10) - 1;
+  const startDate = new Date(y, m, 7);
+  const endDate = new Date(y, m + 1, 6);
+  const formatDate = (date) => {
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+  };
+  const startKey = formatDate(startDate);
+  const endKey = formatDate(endDate);
+
   const monthExpenses = expenses.filter(
-    (tx) => tx.type === "expense" && (tx.dateKey || "").startsWith(monthKey)
+    (tx) => tx.type === "expense" && tx.dateKey >= startKey && tx.dateKey <= endKey
   );
 
   const totalSpent = monthExpenses.reduce((sum, tx) => sum + Number(tx.amount || 0), 0);
@@ -44,8 +57,8 @@ export function generateMonthlyRecap(month, year, expenses, budget, savingsGoal,
     : null;
 
   // Days with spending
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const averageDailySpend = totalSpent / daysInMonth;
+  const totalDaysInCycle = Math.round((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+  const averageDailySpend = totalSpent / totalDaysInCycle;
 
   // Comparison to previous month
   const trends = {};
