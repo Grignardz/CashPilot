@@ -202,7 +202,7 @@ function fallbackCategorySuggestion(input) {
   const foodWords = ["maggi", "dosa", "chai", "tea", "coffee", "lunch", "dinner", "breakfast", "snack", "biryani", "pizza", "burger", "thali", "mess", "canteen", "juice", "water", "milk", "egg", "bread", "rice", "noodles", "momos", "samosa", "pani puri"];
   const transportWords = ["auto", "uber", "ola", "bus", "metro", "train", "cab", "petrol", "fuel", "rick", "rickshaw", "ticket"];
   const bookWords = ["book", "notebook", "pen", "stationery", "xerox", "print", "copy", "study", "course", "subscription", "udemy", "coursera"];
-  const hangoutWords = ["movie", "film", "game", "outing", "trip", "party", "club", "bowling", "arcade", "concert", "event"];
+  const hangoutWords = ["movie", "film", "game", "outing", "trip", "party", "club", "bowling", "arcade", "concert", "event", "netflix", "spotify", "hotstar", "prime"];
 
   let category = "Other";
   let confidence = 0.6;
